@@ -25,6 +25,12 @@ Copy this prompt into your Herdr agent:
 
 Requires Git on each machine you use.
 
+## Review comments for an agent
+
+In a diff tab of **Unstaged**, **Staged** or **Committed** changes, click a line (shift-click for a range), write a comment and choose **Add comment**. Lines with a comment get a dot in the margin. Comments collect across files of the same repository, listed under the diff with a ✕ to drop one.
+
+**Send N to agent** sends them all as one message to an agent in the diff tab's space, the most recently active one unless you pick another: each comment with its file, line numbers and the selected lines as a small diff. Herdr types the message and presses Enter, then focuses that agent. Comments that were sent are cleared; a failed send keeps them. With no agent in the space, the button is replaced by a note.
+
 ## Commit and amend
 
 **Enter** makes a new line; only the button commits. The chevron beside it switches between **Commit** and **Amend** without running either.
@@ -95,7 +101,7 @@ In `mods/better-changes/`:
 
 - `main.js`: setup, settings and commands. `settings.js`: shared with the other mods. `panel.js`: what the panel key does, with no Herdr calls. `syntax.js`: the lexer that colours a diff's code, the same file as Better Files'.
 - `git/repository.js`: following the repository, the index, history, commit and amend. `git/reads.js`: plain functions that read from Git. `git/model.js`: parsing with no Herdr calls.
-- `views/sidebar.js`, `views/diff.js`, `views/pane-header.js`: the three things it can draw. `views/ui.js`: the design kit, Herdr's sizes and small components. Every look lives here, except the token colours, which are in `syntax.js`.
+- `views/sidebar.js`, `views/diff.js`, `views/pane-header.js`: the three things it can draw. `views/review.js`: the diff tab's review comments; `git/review.js` turns a selection into a message, with no Herdr calls. `views/ui.js`: the design kit, Herdr's sizes and small components. Every look lives here, except the token colours, which are in `syntax.js`.
 - `icons/`: Lucide icons, the set Herdr uses, and Herdr's own pane header icons.
 
 - `sync.sh`: copies the mod into Herdr, which reloads it. A symlink loads the code but not the icons.

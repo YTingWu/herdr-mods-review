@@ -348,6 +348,8 @@ export const diffMethods = {
       const limit = this.settings.limits.diff_lines.toLocaleString();
       root.child(Message(`Showing the first ${limit} lines.`));
     }
+    const review = this.renderReview();
+    if (review) root.child(review);
     return root;
   },
 
@@ -404,14 +406,20 @@ export const diffMethods = {
       (range) =>
         rows
           .slice(range.start, range.end)
-          .map((row) => (split ? this.splitRow(row) : this.inlineRow(row))),
-    ).size_full();
+          .map((row, k) => (split ? this.splitRow(row, range.start + k) : this.inlineRow(row, range.start + k))),
+    )
+      .size_full()
+      .on_item_click((key, cx) => this.clickRow(key, cx));
     return div()
       .flex_1()
       .min_h(0)
       .relative()
       .font_family(codeFont())
       .text_size(codeSize())
+      // A row click comes on release; the press says whether shift extends the pick.
+      .on_mouse_down("left", (e) => {
+        this.shiftDown = Boolean(e.modifiers?.shift);
+      })
       .child(split ? this.scrollsTogether(list) : this.scrollsSideways(list))
       .child(Scrollbar.vertical(listId).viewport_from_layout().absolute().inset_0());
   },
@@ -454,7 +462,7 @@ export const diffMethods = {
     return { color: t.foreground, background: null };
   },
 
-  inlineRow(row) {
+  inlineRow(row, index) {
     const t = theme();
     if (row.kind === "@")
       return div().h(rowHeight()).px(12).w_full().bg(t.raised).text_color(t.accent).child(row.text);
@@ -473,6 +481,8 @@ export const diffMethods = {
       .gap(8)
       .items_center()
       .when(Boolean(background), (el) => el.bg(background))
+      .when(this.isSelected(index), (el) => el.bg(`${t.accent}40`))
+      .child(this.commentMark(row))
       .when(!this.conflictCount, (el) => el.child(gutter(row.old)))
       .child(gutter(row.next))
       .child(div().w(codeSize()).flex_none().text_color(color).child(sign))
@@ -539,7 +549,7 @@ export const diffMethods = {
     );
   },
 
-  splitRow(row) {
+  splitRow(row, index) {
     const t = theme();
     if (row.kind !== "pair")
       return div()
@@ -550,6 +560,7 @@ export const diffMethods = {
         .text_color(row.kind === "@" ? t.accent : t.dim)
         .truncate()
         .child(row.text);
+    const selected = this.isSelected(index);
     const side = (entry, line, right) => {
       const { color, background } = this.rowLook(entry?.kind);
       const sign = entry?.kind === "+" || entry?.kind === "-" ? entry.kind : "";
@@ -563,6 +574,7 @@ export const diffMethods = {
         .when(right, (el) => el.border_l(1).border_color(t.border))
         .when(Boolean(background), (el) => el.bg(background))
         .when(!entry, (el) => el.bg(t.raised))
+        .when(selected, (el) => el.bg(`${t.accent}40`))
         .child(
           div()
             .w(codeSize() * 3.5)
@@ -590,6 +602,8 @@ export const diffMethods = {
     return h_flex()
       .h(rowHeight())
       .w_full()
+      .when(selected, (el) => el.bg(`${t.accent}40`))
+      .child(this.commentMark(row))
       .child(side(row.left, row.left?.old, false))
       .child(side(row.right, row.right?.next, true));
   },

@@ -17,6 +17,7 @@ import { gitMethods } from "./git/repository.js";
 import { sidebarMethods } from "./views/sidebar.js";
 import { diffMethods } from "./views/diff.js";
 import { paneHeaderMethods } from "./views/pane-header.js";
+import { reviewMethods } from "./views/review.js";
 
 const CONTEXT_POLL_MS = 300;
 const STATUS_POLL_MS = 10000;
@@ -70,6 +71,7 @@ class BetterChanges extends View {
     this.diffToken = 0;
     this.resetCommits();
     if (this.mode === "sidebar") this.initCommitBox(cx);
+    if (this.mode === "diff") this.initReview(cx);
 
     cx.timer.every(CONTEXT_POLL_MS, (cx) => this.follow(cx));
     this.applySettings(cx);
@@ -190,6 +192,6 @@ class BetterChanges extends View {
   }
 }
 
-Object.assign(BetterChanges.prototype, gitMethods, sidebarMethods, diffMethods, paneHeaderMethods);
+Object.assign(BetterChanges.prototype, gitMethods, sidebarMethods, diffMethods, paneHeaderMethods, reviewMethods);
 
 export default BetterChanges;

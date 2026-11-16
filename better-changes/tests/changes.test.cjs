@@ -18,6 +18,8 @@ const MODEL_NAMES =
 const model = new Function(`${read("git/model.js")}; return { ${MODEL_NAMES} };`)();
 const { panelCommands } = new Function(`${read("panel.js")}; return { panelCommands };`)();
 const syntax = new Function(`${read("syntax.js")}; return { languageOf, syntaxColors, tokenizeLine, WHOLE_FILE_LINES };`)();
+const REVIEW_NAMES = "selectionOf, locationOf, rowHasComment, reviewMessage";
+const review = new Function(`${read("git/review.js")}; return { ${REVIEW_NAMES} };`)();
 
 function load(cwd, { props, saved, home = "/nonexistent", tree, calls = [] } = {}) {
   const store = new Map();
@@ -27,7 +29,10 @@ function load(cwd, { props, saved, home = "/nonexistent", tree, calls = [] } = {
   const env = {
     ...model,
     ...syntax,
+    ...review,
     panelCommands,
+    agents: () => [],
+    hc: async () => ({ code: 0, stdout: "", stderr: "" }),
     closeOverlay: (id) => calls.push(["closeOverlay", id]),
     notify: ({ title }) => calls.push(["notify", title]),
     View: class {},
@@ -101,7 +106,7 @@ function load(cwd, { props, saved, home = "/nonexistent", tree, calls = [] } = {
       },
     }),
   };
-  const source = ["settings.js", "file-icons.js", "git/reads.js", "git/repository.js", "views/sidebar.js", "views/diff.js", "views/pane-header.js", "main.js"]
+  const source = ["settings.js", "file-icons.js", "git/reads.js", "git/repository.js", "views/sidebar.js", "views/diff.js", "views/pane-header.js", "views/review.js", "main.js"]
     .map(read)
     .join("\n");
   const Mod = new Function(...Object.keys(env), source)(...Object.values(env));
@@ -709,4 +714,38 @@ test("a diff is coloured per side, and a hunk header starts both sides afresh", 
   assert.deepEqual(coloured("*/ z"), [], "a hunk header starts afresh");
   assert.deepEqual(coloured("const w = 1"), [["const", "keyword"], ["1", "number"]]);
   assert.equal(mod.runsOf(mod.rows.find((r) => r.kind === "@")), null);
+});
+
+test("review: a selection becomes a small diff with its line ranges", () => {
+  const rows = model.diffRows(["@@ -10,4 +10,5 @@", " ctx", "-old a", "-old b", "+new a", "+new b", "+new c", " tail"]);
+  const picked = review.selectionOf(rows, false, 5, 3);
+  assert.deepStrictEqual(picked.lines, ["-old b", "+new a", "+new b"]);
+  assert.deepStrictEqual(picked.next, [11, 12]);
+  assert.deepStrictEqual(picked.old, [12, 12]);
+  assert.strictEqual(review.locationOf({ path: "a.js", ...picked }), "a.js:11-12");
+  assert.strictEqual(review.selectionOf(rows, false, 0, 0), null);
+  const removed = review.selectionOf(rows, false, 2, 3);
+  assert.strictEqual(review.locationOf({ path: "a.js", ...removed }), "a.js (removed, was line 11-12)");
+});
+
+test("review: side by side pairs count context once", () => {
+  const rows = model.diffRows(["@@ -10,3 +10,3 @@", " ctx", "-old a", "+new a", " tail"]);
+  const picked = review.selectionOf(model.splitDiffRows(rows), true, 1, 2);
+  assert.deepStrictEqual(picked.lines, [" ctx", "-old a", "+new a"]);
+  assert.deepStrictEqual(picked.next, [10, 11]);
+});
+
+test("review: comments mark their rows and build one message", () => {
+  const rows = model.diffRows(["@@ -1,2 +1,3 @@", " a", "+b", "+c", " d"]);
+  const comment = { path: "x.js", scope: "unstaged", ...review.selectionOf(rows, false, 2, 3), body: "rename\n" };
+  assert.ok(review.rowHasComment([comment], rows[2]));
+  assert.ok(!review.rowHasComment([comment], rows[4]));
+  const message = review.reviewMessage("/repo", [comment]);
+  assert.ok(message.startsWith("Review comments on my local changes in /repo."));
+  assert.ok(message.includes("1. x.js:2-3 (unstaged)\n```diff\n+b\n+c\n```\nrename"));
+});
+
+test("review: code with a fence gets a longer fence", () => {
+  const comment = { path: "r.md", scope: "staged", lines: ["+```js"], next: [1, 1], old: null, body: "x" };
+  assert.ok(review.reviewMessage("/r", [comment]).includes("````diff\n+```js\n````"));
 });
